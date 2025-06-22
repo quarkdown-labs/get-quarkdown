@@ -41,7 +41,7 @@ if ! command -v npm &> /dev/null; then
 fi
 
 # Download and extract the latest release zip from GitHub
-echo "Installing Quarkdown to $INSTALL_DIR..."
+echo "Installing Quarkdown to $INSTALL_DIR. To change the installation directory, use --prefix <path>."
 TMP_DIR="$(mktemp -d)"
 #curl -L "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip" TODO set to stable
 curl -L "https://github.com/iamgio/quarkdown/releases/download/latest/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip"
@@ -52,7 +52,7 @@ if ! command -v unzip &> /dev/null; then
   exit 1
 fi
 
-unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR/quarkdown"
+unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 
 # Create the install directory if it doesn't exist
 mkdir -p "$INSTALL_DIR"
@@ -62,7 +62,7 @@ cp -r "$TMP_DIR/quarkdown/"* "$INSTALL_DIR"
 
 # Install Puppeteer without bundling a browser
 export PUPPETEER_CHROME_SKIP_DOWNLOAD=true
-npm install puppeteer --prefix "$INSTALL_DIR/lib"
+npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
 
 # Create wrapper script in /usr/local/bin for CLI access
 WRAPPER_PATH="/usr/local/bin/quarkdown"
