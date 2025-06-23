@@ -40,17 +40,19 @@ if ! command -v npm &> /dev/null; then
   exit 1
 fi
 
-# Download and extract the latest release zip from GitHub
-echo "Installing Quarkdown to $INSTALL_DIR. To change the installation directory, use --prefix <path>."
-TMP_DIR="$(mktemp -d)"
-#curl -L "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip" TODO set to stable
-curl -L "https://github.com/iamgio/quarkdown/releases/download/latest/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip"
-
 # Ensure unzip is available
 if ! command -v unzip &> /dev/null; then
   echo "Error: unzip is required but not installed."
   exit 1
 fi
+
+# Download and extract the latest release zip from GitHub
+echo "Installing Quarkdown to $INSTALL_DIR. To change the installation directory, use --prefix <path>."
+echo ""
+
+TMP_DIR="$(mktemp -d)"
+#curl -L "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip" TODO set to stable
+curl -L "https://github.com/iamgio/quarkdown/releases/download/latest/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip"
 
 unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 
@@ -80,4 +82,6 @@ chmod +x "$WRAPPER_PATH"
 rm -rf "$TMP_DIR"
 
 echo "Quarkdown has been successfully installed!"
-echo "To uninstall, remove $INSTALL_DIR and $WRAPPER_PATH"
+echo "Note: make sure a suitable installation of Chrome, Chromium or Firefox is available for PDF generation."
+echo ""
+echo "To uninstall Quarkdown, remove $INSTALL_DIR and $WRAPPER_PATH"
