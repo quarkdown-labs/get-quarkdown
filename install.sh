@@ -70,7 +70,7 @@ cat <<EOF > "$WRAPPER_PATH"
 #!/bin/bash
 export JAVA_HOME="\$(dirname "\$(dirname "\$(readlink -f "\$(which java)")")")"
 export PATH="$INSTALL_DIR/bin:\$PATH"
-export NPM_GLOBAL_PREFIX="$INSTALL_DIR/lib"
+export QD_NPM_PREFIX="$INSTALL_DIR/lib"
 exec "$INSTALL_DIR/bin/quarkdown" "\$@"
 EOF
 
