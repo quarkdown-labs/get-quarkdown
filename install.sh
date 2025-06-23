@@ -51,8 +51,7 @@ echo "Installing Quarkdown to $INSTALL_DIR. To change the installation directory
 echo ""
 
 TMP_DIR="$(mktemp -d)"
-#curl -L "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip" TODO set to stable
-curl -L "https://github.com/iamgio/quarkdown/releases/download/latest/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip"
+curl -L "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip"
 
 unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 
