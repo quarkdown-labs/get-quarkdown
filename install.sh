@@ -42,10 +42,13 @@ detect_package_manager() {
   fi
 }
 
-# Install dependencies using detected package manager
+# Install dependencies using the detected package manager
 install_with_pm() {
   local pm="$1"
   local package="$2"
+
+  echo ""
+  echo "Installing $package using $pm..."
 
   case "$pm" in
     apt)
@@ -84,7 +87,6 @@ if ! command -v java &>/dev/null; then
       echo "No supported package manager found. Skipping automatic install."
       USE_PM=false
     else
-      echo "Installing JDK 17 using $PM..."
       case "$PM" in
         apt) install_with_pm "$PM" openjdk-17-jdk ;;
         dnf|yum|zypper) install_with_pm "$PM" java-17-openjdk ;;
@@ -110,7 +112,6 @@ if ! command -v node &>/dev/null; then
       echo "No supported package manager found. Skipping automatic install."
       USE_PM=false
     else
-      echo "Installing Node.js using $PM..."
       install_with_pm "$PM" nodejs
     fi
   fi
@@ -131,7 +132,6 @@ if ! command -v npm &>/dev/null; then
       echo "No supported package manager found. Skipping automatic install."
       USE_PM=false
     else
-      echo "Installing npm using $PM..."
       if [[ "$PM" == "brew" || "$PM" == "pacman" ]]; then
         # Usually nodejs includes npm here
         echo "npm comes with Node.js for $PM"
