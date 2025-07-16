@@ -149,7 +149,7 @@ fi
 
 # Install Puppeteer
 npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
-npx puppeteer browsers install chrome-headless-shell --yes
+npx --yes puppeteer browsers install chrome-headless-shell
 
 # Ensure unzip is available
 if ! command -v unzip &>/dev/null; then
