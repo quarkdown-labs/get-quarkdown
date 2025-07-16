@@ -152,7 +152,7 @@ export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
 mkdir -p "$PUPPETEER_CACHE_DIR"
 npm init -y --prefix "$INSTALL_DIR/lib" > /dev/null
 npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
-npm install --prefix "$INSTALL_DIR/lib/node_modules/puppeteer" > /dev/null
+npm install --prefix "$INSTALL_DIR/lib/node_modules/puppeteer"
 
 # Ensure unzip is available
 if ! command -v unzip &>/dev/null; then
