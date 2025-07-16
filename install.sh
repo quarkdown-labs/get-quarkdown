@@ -148,6 +148,8 @@ if ! command -v npm &>/dev/null; then
 fi
 
 # Install Puppeteer
+export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
+mkdir -p "$PUPPETEER_CACHE_DIR"
 npm init -y --prefix "$INSTALL_DIR/lib" > /dev/null
 npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
 npm install --prefix "$INSTALL_DIR/lib/node_modules/puppeteer" > /dev/null
@@ -174,6 +176,7 @@ cat <<EOF > "$WRAPPER_PATH"
 export JAVA_HOME="\$(dirname "\$(dirname "\$(readlink -f "\$(which java)")")")"
 export PATH="$INSTALL_DIR/bin:\$PATH"
 export QD_NPM_PREFIX="$INSTALL_DIR/lib"
+export PUPPETEER_CACHE_DIR="$PUPPETEER_CACHE_DIR"
 exec "$INSTALL_DIR/bin/quarkdown" "\$@"
 EOF
 
