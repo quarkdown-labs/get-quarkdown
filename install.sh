@@ -148,13 +148,9 @@ if ! command -v npm &>/dev/null; then
 fi
 
 # Install Puppeteer
-cd "$INSTALL_DIR/lib"
-npm init -y > /dev/null
-npm install puppeteer > /dev/null
-cd - > /dev/null
-cd "$INSTALL_DIR/lib/node_modules/puppeteer"
-npm install > /dev/null
-cd - > /dev/null
+npm init -y --prefix "$INSTALL_DIR/lib" > /dev/null
+npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
+npm install --prefix "$INSTALL_DIR/lib/node_modules/puppeteer" > /dev/null
 
 # Ensure unzip is available
 if ! command -v unzip &>/dev/null; then
