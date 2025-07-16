@@ -148,8 +148,13 @@ if ! command -v npm &>/dev/null; then
 fi
 
 # Install Puppeteer
-npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
-npx --yes puppeteer browsers install chrome-headless-shell
+cd "$INSTALL_DIR/lib"
+npm init -y > /dev/null
+npm install puppeteer > /dev/null
+cd - > /dev/null
+cd "$INSTALL_DIR/lib/node_modules/puppeteer"
+npm install > /dev/null
+cd - > /dev/null
 
 # Ensure unzip is available
 if ! command -v unzip &>/dev/null; then
