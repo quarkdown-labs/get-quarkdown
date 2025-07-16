@@ -163,7 +163,6 @@ unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 mkdir -p "$INSTALL_DIR"
 cp -r "$TMP_DIR/quarkdown/"* "$INSTALL_DIR"
 
-export PUPPETEER_CHROME_SKIP_DOWNLOAD=true
 npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
 
 WRAPPER_PATH="/usr/local/bin/quarkdown"
@@ -179,7 +178,6 @@ chmod +x "$WRAPPER_PATH"
 
 rm -rf "$TMP_DIR"
 
-echo "Quarkdown installed!"
-echo "Make sure Chrome, Chromium, or Firefox is installed for PDF generation."
+echo "Quarkdown is now installed!"
 echo ""
-echo "To uninstall, remove $INSTALL_DIR and $WRAPPER_PATH."
+echo "To uninstall, remove $INSTALL_DIR and $WRAPPER_PATH"
