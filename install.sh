@@ -163,7 +163,9 @@ unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 mkdir -p "$INSTALL_DIR"
 cp -r "$TMP_DIR/quarkdown/"* "$INSTALL_DIR"
 
+# Install Puppeteer
 npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
+node "$INSTALL_DIR/lib/node_modules/puppeteer/install.mjs"
 
 WRAPPER_PATH="/usr/local/bin/quarkdown"
 cat <<EOF > "$WRAPPER_PATH"
