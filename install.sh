@@ -4,6 +4,7 @@ set -e
 
 INSTALL_DIR="/opt/quarkdown"
 USE_PM=true
+TAG=""
 
 # Parse options
 while [[ $# -gt 0 ]]; do
@@ -15,6 +16,10 @@ while [[ $# -gt 0 ]]; do
     --no-pm)
       USE_PM=false
       shift
+      ;;
+    --tag)
+      TAG="$2"
+      shift 2
       ;;
     *)
       echo "Unknown option: $1"
@@ -164,7 +169,15 @@ echo "Installing Quarkdown to $INSTALL_DIR..."
 echo ""
 
 TMP_DIR="$(mktemp -d)"
-curl -L "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip" -o "$TMP_DIR/quarkdown.zip"
+
+# Determine download URL based on tag option
+if [[ -z "$TAG" ]]; then
+  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
+else
+  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/download/$TAG/quarkdown.zip"
+fi
+
+curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
 unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 
 mkdir -p "$INSTALL_DIR"
