@@ -4,6 +4,7 @@ set -e
 
 INSTALL_DIR="/opt/quarkdown"
 USE_PM=true
+PUPPETEER_PATH=""
 TAG=""
 
 # Parse options
@@ -16,6 +17,10 @@ while [[ $# -gt 0 ]]; do
     --no-pm)
       USE_PM=false
       shift
+      ;;
+    --puppeteer-prefix)
+      PUPPETEER_PATH="$2"
+      shift 2
       ;;
     --tag)
       TAG="$2"
@@ -152,12 +157,20 @@ if ! command -v npm &>/dev/null; then
   fi
 fi
 
-# Install Puppeteer
-export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
-mkdir -p "$PUPPETEER_CACHE_DIR"
-npm init -y --prefix "$INSTALL_DIR/lib" > /dev/null
-npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
-npm install --prefix "$INSTALL_DIR/lib/node_modules/puppeteer"
+QD_NPM_PREFIX="$INSTALL_DIR/lib"
+
+# Check if puppeteer path is provided via --puppeteer-prefix
+if [[ -n "$PUPPETEER_PATH" ]] && [[ -d "$PUPPETEER_PATH/node_modules/puppeteer" ]]; then
+  QD_NPM_PREFIX="$PUPPETEER_PATH"
+  export PUPPETEER_CACHE_DIR="$HOME/.cache/puppeteer"
+else
+  # Install Puppeteer using npm
+  export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
+  mkdir -p "$PUPPETEER_CACHE_DIR"
+  npm init -y --prefix "$INSTALL_DIR/lib" > /dev/null
+  npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
+  npm install --prefix "$INSTALL_DIR/lib/node_modules/puppeteer"
+fi
 
 # Ensure unzip is available
 if ! command -v unzip &>/dev/null; then
@@ -188,7 +201,7 @@ cat <<EOF > "$WRAPPER_PATH"
 #!/bin/bash
 export JAVA_HOME="\$(dirname "\$(dirname "\$(readlink -f "\$(which java)")")")"
 export PATH="$INSTALL_DIR/bin:\$PATH"
-export QD_NPM_PREFIX="$INSTALL_DIR/lib"
+export QD_NPM_PREFIX="$QD_NPM_PREFIX"
 export PUPPETEER_CACHE_DIR="$PUPPETEER_CACHE_DIR"
 exec "$INSTALL_DIR/bin/quarkdown" "\$@"
 EOF
