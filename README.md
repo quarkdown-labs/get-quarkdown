@@ -3,6 +3,18 @@
 A shell script to install [Quarkdown](https://github.com/iamgio/quarkdown)
 with automatic dependency management, with support for: apt, dnf, yum, pacman, zypper, brew.
 
+To run with the default options:
+
+```shell
+curl -fsSL https://raw.githubusercontent.com/quarkdown-labs/get-quarkdown/refs/heads/main/install.sh | sudo env "PATH=$PATH" bash
+```
+
+To add options, append `-s -- <options>`:
+
+```shell
+curl ... | sudo env "PATH=$PATH" bash -s -- --tag v1.12.0
+```
+
 > Make sure you run with sudo privileges, as the script may need to install system packages and create files in system directories.
 
 ## Options
