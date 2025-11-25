@@ -4,6 +4,7 @@ set -e
 
 INSTALL_DIR="/opt/quarkdown"
 USE_PM=true
+PUPPETEER_PATH=""
 
 # Parse options
 while [[ $# -gt 0 ]]; do
@@ -15,6 +16,10 @@ while [[ $# -gt 0 ]]; do
     --no-pm)
       USE_PM=false
       shift
+      ;;
+    --puppeteer-prefix)
+      PUPPETEER_PATH="$2"
+      shift 2
       ;;
     *)
       echo "Unknown option: $1"
@@ -149,14 +154,12 @@ fi
 
 QD_NPM_PREFIX="$INSTALL_DIR/lib"
 
-# Check if puppeteer is provied by a system package
-if [ -d "/usr/lib/node_modules/puppeteer" ]; then
-  QD_NPM_PREFIX="/usr/lib"
-  export PUPPETEER_CACHE_DIR='$HOME/.cache/puppeteer'
+# Check if puppeteer path is provided via --puppeteer-prefix
+if [[ -n "$PUPPETEER_PATH" ]] && [[ -d "$PUPPETEER_PATH/node_modules/puppeteer" ]]; then
+  QD_NPM_PREFIX="$PUPPETEER_PATH"
+  export PUPPETEER_CACHE_DIR="$HOME/.cache/puppeteer"
 else
   # Install Puppeteer using npm
-  echo "puppeteer not found."
-
   export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
   mkdir -p "$PUPPETEER_CACHE_DIR"
   npm init -y --prefix "$INSTALL_DIR/lib" > /dev/null
