@@ -39,7 +39,7 @@ To run with options:
 
 ## Options
 
-> The following options are formatted as: *`*nix` / `Windows` * 
+> The following options are formatted as: *`*nix` / `Windows`* 
 
 ### `--prefix <path>` / `-Prefix <path>`
 
