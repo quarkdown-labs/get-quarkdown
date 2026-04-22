@@ -115,8 +115,12 @@ Copy-Item -Path "$TmpDir\quarkdown\*" -Destination $Prefix -Recurse -Force
 
 # Create wrapper script in the install directory
 $WrapperPath = "$Prefix\quarkdown.cmd"
+$JavaPath = (Get-Command java).Source
+$JavaHome = (Get-Item $JavaPath).Directory.Parent.FullName
 $WrapperContent = @"
 @echo off
+set "JAVA_HOME=$JavaHome"
+set "PATH=$JavaHome\bin;$Prefix\bin;%PATH%"
 set "QD_NPM_PREFIX=$QdNpmPrefix"
 set "PUPPETEER_CACHE_DIR=$PuppeteerCacheDir"
 "$Prefix\bin\quarkdown.bat" %*
