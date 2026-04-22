@@ -1,0 +1,97 @@
+name: Test Installation
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove pre-installed Node and Java (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          NODE=$(which node || true)
+          if [ -n "$NODE" ]; then
+            echo "Removing Node at $NODE"
+            sudo rm -f "$NODE"
+          fi
+
+          JAVA=$(which java || true)
+          if [ -n "$JAVA" ]; then
+            echo "Removing Java at $JAVA"
+            sudo rm -f "$JAVA"
+          fi
+
+          # Remove toolcache path fragments from PATH
+          NEW_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/opt/hostedtoolcache' | tr '\n' ':' | sed 's/:$//')
+          echo "PATH=$NEW_PATH" >> $GITHUB_ENV
+
+      - name: Remove pre-installed Node and Java (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          # Remove Node and Java binaries
+          foreach ($cmd in @("node", "java")) {
+            $bin = Get-Command $cmd -ErrorAction SilentlyContinue
+            if ($bin) {
+              Write-Host "Removing $cmd at $($bin.Source)"
+              Remove-Item -Force $bin.Source
+            }
+          }
+
+          # Remove hostedtoolcache path fragments from PATH
+          $NewPath = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'hostedtoolcache' }) -join ';'
+          echo "PATH=$NewPath" >> $env:GITHUB_ENV
+
+      - name: Verify Node and Java are removed
+        shell: bash
+        run: |
+          if which node; then echo "ERROR: Node is still present"; exit 1; fi
+          if which java; then echo "ERROR: Java is still present"; exit 1; fi
+          echo "OK: Node and Java are not present"
+
+      - name: Install (Linux)
+        if: runner.os == 'Linux'
+        run: sudo env "PATH=$PATH" bash install.sh
+
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          .\install.ps1
+
+          # Refresh PATH from registry
+          $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+          echo "PATH=$RefreshedPath;$env:LOCALAPPDATA\Quarkdown" >> $env:GITHUB_ENV
+
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo ".docname {test}" > main.qd
+
+          quarkdown c main.qd -o ./output
+          test -d "./output/test"
+
+          quarkdown c main.qd -o ./output --pdf
+          test -f "./output/test.pdf"
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          [System.IO.File]::WriteAllText("main.qd", ".docname {test}")
+
+          quarkdown c main.qd -o ./output
+          if (-Not (Test-Path "./output/test")) { Write-Error "Output directory not found" }
+
+          quarkdown c main.qd -o ./output --pdf
+          if (-Not (Test-Path "./output/test.pdf")) { Write-Error "Output PDF not found" }
