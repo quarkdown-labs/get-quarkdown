@@ -157,6 +157,12 @@ if ! command -v npm &>/dev/null; then
   fi
 fi
 
+# Clean previous installation
+if [[ -d "$INSTALL_DIR" ]]; then
+  echo "Removing previous installation at $INSTALL_DIR..."
+  rm -rf "$INSTALL_DIR"
+fi
+
 QD_NPM_PREFIX="$INSTALL_DIR/lib"
 
 # Check if puppeteer path is provided via --puppeteer-prefix

@@ -76,6 +76,12 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
     }
 }
 
+# Clean previous installation
+if (Test-Path $Prefix) {
+    Write-Host "Removing previous installation at $Prefix..."
+    Remove-Item -Path $Prefix -Recurse -Force
+}
+
 $QdNpmPrefix = "$Prefix\lib"
 
 # Check if puppeteer path is provided via -PuppeteerPrefix
