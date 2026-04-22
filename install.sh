@@ -157,27 +157,6 @@ if ! command -v npm &>/dev/null; then
   fi
 fi
 
-# Clean previous installation
-if [[ -d "$INSTALL_DIR" ]]; then
-  echo "Removing previous installation at $INSTALL_DIR..."
-  rm -rf "$INSTALL_DIR"
-fi
-
-QD_NPM_PREFIX="$INSTALL_DIR/lib"
-
-# Check if puppeteer path is provided via --puppeteer-prefix
-if [[ -n "$PUPPETEER_PATH" ]] && [[ -d "$PUPPETEER_PATH/node_modules/puppeteer" ]]; then
-  QD_NPM_PREFIX="$PUPPETEER_PATH"
-  export PUPPETEER_CACHE_DIR="$HOME/.cache/puppeteer"
-else
-  # Install Puppeteer using npm
-  export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
-  mkdir -p "$PUPPETEER_CACHE_DIR"
-  npm init -y --prefix "$INSTALL_DIR/lib" > /dev/null
-  npm install puppeteer --prefix "$INSTALL_DIR/lib" > /dev/null
-  npm install --prefix "$INSTALL_DIR/lib/node_modules/puppeteer"
-fi
-
 # Ensure unzip is available
 if ! command -v unzip &>/dev/null; then
   echo "Error: unzip is required but not installed."
@@ -187,9 +166,9 @@ fi
 echo "Installing Quarkdown to $INSTALL_DIR..."
 echo ""
 
+# Download and extract to a temp directory before touching the existing installation
 TMP_DIR="$(mktemp -d)"
 
-# Determine download URL based on tag option
 if [[ -z "$TAG" ]]; then
   DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
 else
@@ -199,13 +178,39 @@ fi
 curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
 unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 
+QD_NPM_PREFIX="$INSTALL_DIR/lib"
+
+# Check if puppeteer path is provided via --puppeteer-prefix
+if [[ -n "$PUPPETEER_PATH" ]] && [[ -d "$PUPPETEER_PATH/node_modules/puppeteer" ]]; then
+  QD_NPM_PREFIX="$PUPPETEER_PATH"
+  export PUPPETEER_CACHE_DIR="$HOME/.cache/puppeteer"
+else
+  # Install Puppeteer into the staging directory
+  export PUPPETEER_CACHE_DIR="$TMP_DIR/quarkdown/lib/puppeteer_cache"
+  mkdir -p "$PUPPETEER_CACHE_DIR"
+  npm init -y --prefix "$TMP_DIR/quarkdown/lib" > /dev/null
+  npm install puppeteer --prefix "$TMP_DIR/quarkdown/lib" > /dev/null
+  npm install --prefix "$TMP_DIR/quarkdown/lib/node_modules/puppeteer"
+  export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
+fi
+
+# Clean previous installation only after download and Puppeteer install succeed
+if [[ -d "$INSTALL_DIR" ]]; then
+  if [[ ! -x "$INSTALL_DIR/bin/quarkdown" ]]; then
+    echo "Error: $INSTALL_DIR exists but does not contain a Quarkdown installation. Aborting."
+    exit 1
+  fi
+  echo "Removing previous installation at $INSTALL_DIR..."
+  rm -rf "$INSTALL_DIR"
+fi
+
 mkdir -p "$INSTALL_DIR"
 cp -r "$TMP_DIR/quarkdown/"* "$INSTALL_DIR"
 
 WRAPPER_PATH="/usr/local/bin/quarkdown"
 cat <<EOF > "$WRAPPER_PATH"
 #!/bin/bash
-export JAVA_HOME="\$(dirname "\$(dirname "\$(readlink -f "\$(which java)")")")"
+export JAVA_HOME="\$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
 export PATH="$INSTALL_DIR/bin:\$PATH"
 export QD_NPM_PREFIX="$QD_NPM_PREFIX"
 export PUPPETEER_CACHE_DIR="$PUPPETEER_CACHE_DIR"
