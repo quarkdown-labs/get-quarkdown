@@ -39,8 +39,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          # Remove broken msstore source that causes winget failures on GHA runners
-          winget source remove msstore
+          # Fix broken winget sources on GHA runners
+          winget source reset --force
 
           # Remove Node and Java binaries
           foreach ($cmd in @("node", "java")) {
@@ -94,6 +94,68 @@ jobs:
         run: |
           [System.IO.File]::WriteAllText("main.qd", ".docname {test}")
 
+          quarkdown c main.qd -o ./output
+          if (-Not (Test-Path "./output/test")) { Write-Error "Output directory not found" }
+
+          quarkdown c main.qd -o ./output --pdf
+          if (-Not (Test-Path "./output/test.pdf")) { Write-Error "Output PDF not found" }
+
+      - name: Corrupt installation for reinstall test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Rename all files in lib to simulate stale state
+          sudo find /opt/quarkdown/lib -type f -exec sh -c 'mv "$1" "$1.old"' _ {} \;
+          # Verify quarkdown no longer works
+          ! quarkdown c main.qd -o ./output-corrupt
+
+      - name: Corrupt installation for reinstall test (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          # Rename all files in lib to simulate stale state
+          Get-ChildItem -Path "$env:LOCALAPPDATA\Quarkdown\lib" -File -Recurse | Rename-Item -NewName { $_.Name + ".old" }
+          # Verify quarkdown no longer works
+          $ErrorActionPreference = "Continue"
+          quarkdown c main.qd -o ./output-corrupt 2>&1 | Out-Null
+          $ErrorActionPreference = "Stop"
+          if ($LASTEXITCODE -eq 0) { Write-Error "quarkdown should have failed after corruption" }
+          $global:LASTEXITCODE = 0
+
+      - name: Reinstall (Linux)
+        if: runner.os == 'Linux'
+        run: sudo env "PATH=$PATH" bash install.sh
+
+      - name: Reinstall (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          .\install.ps1
+
+          $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+          echo "PATH=$RefreshedPath;$env:LOCALAPPDATA\Quarkdown" >> $env:GITHUB_ENV
+
+      - name: Test reinstall is clean (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Verify no .old files remain from the corrupted installation
+          test -z "$(find /opt/quarkdown/lib -name '*.old' 2>/dev/null)"
+
+          rm -rf ./output
+          quarkdown c main.qd -o ./output
+          test -d "./output/test"
+
+          quarkdown c main.qd -o ./output --pdf
+          test -f "./output/test.pdf"
+
+      - name: Test reinstall is clean (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          # Verify no .old files remain from the corrupted installation
+          $stale = Get-ChildItem -Path "$env:LOCALAPPDATA\Quarkdown\lib" -Filter "*.old" -Recurse
+          if ($stale) { Write-Error "Stale .old files found after reinstall: $($stale.FullName)" }
+
+          Remove-Item -Path ./output -Recurse -Force -ErrorAction SilentlyContinue
           quarkdown c main.qd -o ./output
           if (-Not (Test-Path "./output/test")) { Write-Error "Output directory not found" }
 
