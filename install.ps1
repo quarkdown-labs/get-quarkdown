@@ -123,13 +123,22 @@ if (Test-Path $Prefix) {
 New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
 Copy-Item -Path "$TmpDir\quarkdown\*" -Destination $Prefix -Recurse -Force
 
-# Create wrapper script that resolves JAVA_HOME dynamically at runtime
+# Resolve JAVA_HOME at install time (works through shims)
+$PrevPref = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$JavaHome = (java -XshowSettings:property -version 2>&1 | Select-String 'java\.home\s*=\s*(.+)').Matches.Groups[1].Value.Trim()
+$ErrorActionPreference = $PrevPref
+
+# Create wrapper script with baked-in JAVA_HOME and runtime fallback
 $WrapperPath = "$Prefix\quarkdown.cmd"
 $WrapperContent = @"
 @echo off
+set "JAVA_HOME=$JavaHome"
+if exist "%JAVA_HOME%\bin\java.exe" goto :run
 set "JAVA_HOME="
 for /f "tokens=2 delims==" %%a in ('java -XshowSettings:property -version 2^>^&1 ^| findstr "java.home"') do set "JAVA_HOME=%%a"
 if defined JAVA_HOME set "JAVA_HOME=%JAVA_HOME:~1%"
+:run
 set "PATH=%JAVA_HOME%\bin;$Prefix\bin;%PATH%"
 set "QD_NPM_PREFIX=$QdNpmPrefix"
 set "PUPPETEER_CACHE_DIR=$PuppeteerCacheDir"

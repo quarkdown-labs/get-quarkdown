@@ -207,10 +207,15 @@ fi
 mkdir -p "$INSTALL_DIR"
 cp -r "$TMP_DIR/quarkdown/"* "$INSTALL_DIR"
 
+JAVA_HOME_RESOLVED="$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
+
 WRAPPER_PATH="/usr/local/bin/quarkdown"
 cat <<EOF > "$WRAPPER_PATH"
 #!/bin/bash
-export JAVA_HOME="\$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
+export JAVA_HOME="$JAVA_HOME_RESOLVED"
+if [ ! -d "\$JAVA_HOME" ]; then
+  export JAVA_HOME="\$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
+fi
 export PATH="$INSTALL_DIR/bin:\$PATH"
 export QD_NPM_PREFIX="$QD_NPM_PREFIX"
 export PUPPETEER_CACHE_DIR="$PUPPETEER_CACHE_DIR"
