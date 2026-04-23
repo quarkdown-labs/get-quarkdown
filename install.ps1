@@ -76,29 +76,13 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
     }
 }
 
-$QdNpmPrefix = "$Prefix\lib"
-
-# Check if puppeteer path is provided via -PuppeteerPrefix
-if ($PuppeteerPrefix -and (Test-Path "$PuppeteerPrefix\node_modules\puppeteer")) {
-    $QdNpmPrefix = $PuppeteerPrefix
-    $PuppeteerCacheDir = "$env:USERPROFILE\.cache\puppeteer"
-} else {
-    # Install Puppeteer using npm
-    $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
-    New-Item -ItemType Directory -Force -Path $PuppeteerCacheDir | Out-Null
-    $env:PUPPETEER_CACHE_DIR = $PuppeteerCacheDir
-    npm init -y --prefix "$Prefix\lib" | Out-Null
-    npm install puppeteer --prefix "$Prefix\lib" | Out-Null
-    npm install --prefix "$Prefix\lib\node_modules\puppeteer"
-}
-
 Write-Host "Installing Quarkdown to $Prefix..."
 Write-Host ""
 
+# Download and extract to a temp directory before touching the existing installation
 $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
 
-# Determine download URL based on tag option
 if (-not $Tag) {
     $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
 } else {
@@ -110,17 +94,52 @@ Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath -UseBasicParsing
 
 Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
 
+$QdNpmPrefix = "$Prefix\lib"
+
+# Check if puppeteer path is provided via -PuppeteerPrefix
+if ($PuppeteerPrefix -and (Test-Path "$PuppeteerPrefix\node_modules\puppeteer")) {
+    $QdNpmPrefix = $PuppeteerPrefix
+    $PuppeteerCacheDir = "$env:USERPROFILE\.cache\puppeteer"
+} else {
+    # Install Puppeteer into the staging directory
+    $PuppeteerCacheDir = "$TmpDir\quarkdown\lib\puppeteer_cache"
+    New-Item -ItemType Directory -Force -Path $PuppeteerCacheDir | Out-Null
+    $env:PUPPETEER_CACHE_DIR = $PuppeteerCacheDir
+    npm init -y --prefix "$TmpDir\quarkdown\lib" | Out-Null
+    npm install puppeteer --prefix "$TmpDir\quarkdown\lib" | Out-Null
+    npm install --prefix "$TmpDir\quarkdown\lib\node_modules\puppeteer"
+    $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
+}
+
+# Clean previous installation only after download and Puppeteer install succeed
+if (Test-Path $Prefix) {
+    if (-not (Test-Path "$Prefix\bin\quarkdown.bat")) {
+        Write-Error "$Prefix exists but does not contain a Quarkdown installation. Aborting."
+    }
+    Write-Host "Removing previous installation at $Prefix..."
+    Remove-Item -Path $Prefix -Recurse -Force
+}
+
 New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
 Copy-Item -Path "$TmpDir\quarkdown\*" -Destination $Prefix -Recurse -Force
 
-# Create wrapper script in the install directory
+# Resolve JAVA_HOME at install time (works through shims)
+$PrevPref = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$JavaHome = (java -XshowSettings:property -version 2>&1 | Select-String 'java\.home\s*=\s*(.+)').Matches.Groups[1].Value.Trim()
+$ErrorActionPreference = $PrevPref
+
+# Create wrapper script with baked-in JAVA_HOME and runtime fallback
 $WrapperPath = "$Prefix\quarkdown.cmd"
-$JavaPath = (Get-Command java).Source
-$JavaHome = (Get-Item $JavaPath).Directory.Parent.FullName
 $WrapperContent = @"
 @echo off
 set "JAVA_HOME=$JavaHome"
-set "PATH=$JavaHome\bin;$Prefix\bin;%PATH%"
+if exist "%JAVA_HOME%\bin\java.exe" goto :run
+set "JAVA_HOME="
+for /f "tokens=2 delims==" %%a in ('java -XshowSettings:property -version 2^>^&1 ^| findstr "java.home"') do set "JAVA_HOME=%%a"
+if defined JAVA_HOME set "JAVA_HOME=%JAVA_HOME:~1%"
+:run
+set "PATH=%JAVA_HOME%\bin;$Prefix\bin;%PATH%"
 set "QD_NPM_PREFIX=$QdNpmPrefix"
 set "PUPPETEER_CACHE_DIR=$PuppeteerCacheDir"
 "$Prefix\bin\quarkdown.bat" %*
