@@ -107,7 +107,6 @@ if ($PuppeteerPrefix -and (Test-Path "$PuppeteerPrefix\node_modules\puppeteer"))
     $env:PUPPETEER_CACHE_DIR = $PuppeteerCacheDir
     npm init -y --prefix "$TmpDir\quarkdown\lib" | Out-Null
     npm install puppeteer --prefix "$TmpDir\quarkdown\lib" | Out-Null
-    npm install --prefix "$TmpDir\quarkdown\lib\node_modules\puppeteer"
     $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
 }
 

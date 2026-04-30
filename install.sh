@@ -190,7 +190,6 @@ else
   mkdir -p "$PUPPETEER_CACHE_DIR"
   npm init -y --prefix "$TMP_DIR/quarkdown/lib" > /dev/null
   npm install puppeteer --prefix "$TMP_DIR/quarkdown/lib" > /dev/null
-  npm install --prefix "$TMP_DIR/quarkdown/lib/node_modules/puppeteer"
   export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
 fi
 
