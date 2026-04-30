@@ -122,6 +122,7 @@ if ([string]::IsNullOrWhiteSpace($InstallParent)) {
     $InstallParent = "."
 }
 $StageDir = Join-Path $InstallParent (".quarkdown-new-" + [System.Guid]::NewGuid().ToString("N"))
+$BackupDir = Join-Path $InstallParent (".quarkdown-old-" + [System.Guid]::NewGuid().ToString("N"))
 
 try {
     New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
@@ -157,16 +158,27 @@ try {
     New-Item -ItemType Directory -Force -Path $InstallParent | Out-Null
     Move-Item -Path "$TmpDir\quarkdown" -Destination $StageDir
 
-    # Clean previous installation only after download and Puppeteer install succeed
+    # Move existing installation out of the way only after download and Puppeteer install succeed.
     if (Test-Path $Prefix) {
         if (-not (Test-Path "$Prefix\bin\quarkdown.bat")) {
             Write-Error "$Prefix exists but does not contain a Quarkdown installation. Aborting."
         }
-        Write-Host "Removing previous installation at $Prefix..."
-        Remove-Item -Path $Prefix -Recurse -Force
+        Write-Host "Staging previous installation from $Prefix..."
+        Move-Item -Path $Prefix -Destination $BackupDir
     }
 
-    Move-Item -Path $StageDir -Destination $Prefix
+    try {
+        Move-Item -Path $StageDir -Destination $Prefix
+    } catch {
+        if (Test-Path $BackupDir -and (-not (Test-Path $Prefix))) {
+            Move-Item -Path $BackupDir -Destination $Prefix
+        }
+        throw
+    }
+
+    if (Test-Path $BackupDir) {
+        Remove-Item -Path $BackupDir -Recurse -Force
+    }
 
     # Resolve JAVA_HOME at install time (works through shims)
     $PrevPref = $ErrorActionPreference
@@ -218,6 +230,14 @@ exec "$SCRIPT_DIR/quarkdown.cmd" "$@"
     }
 }
 finally {
+    if ($BackupDir -and (Test-Path $BackupDir)) {
+        try {
+            Remove-Item -Path $BackupDir -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to remove previous-installation backup $BackupDir: $($_.Exception.Message)"
+        }
+    }
+
     if ($StageDir -and (Test-Path $StageDir)) {
         try {
             Remove-Item -Path $StageDir -Recurse -Force -ErrorAction Stop
