@@ -117,6 +117,11 @@ Write-Host ""
 
 # Download and extract to a temp directory before touching the existing installation
 $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
+$InstallParent = Split-Path -Path $Prefix -Parent
+if ([string]::IsNullOrWhiteSpace($InstallParent)) {
+    $InstallParent = "."
+}
+$StageDir = Join-Path $InstallParent (".quarkdown-new-" + [System.Guid]::NewGuid().ToString("N"))
 
 try {
     New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
@@ -148,6 +153,10 @@ try {
         $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
     }
 
+    # Stage the extracted payload in the target volume for a fast final move.
+    New-Item -ItemType Directory -Force -Path $InstallParent | Out-Null
+    Move-Item -Path "$TmpDir\quarkdown" -Destination $StageDir
+
     # Clean previous installation only after download and Puppeteer install succeed
     if (Test-Path $Prefix) {
         if (-not (Test-Path "$Prefix\bin\quarkdown.bat")) {
@@ -157,8 +166,7 @@ try {
         Remove-Item -Path $Prefix -Recurse -Force
     }
 
-    New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
-    Copy-Item -Path "$TmpDir\quarkdown\*" -Destination $Prefix -Recurse -Force
+    Move-Item -Path $StageDir -Destination $Prefix
 
     # Resolve JAVA_HOME at install time (works through shims)
     $PrevPref = $ErrorActionPreference
@@ -210,6 +218,14 @@ exec "$SCRIPT_DIR/quarkdown.cmd" "$@"
     }
 }
 finally {
+    if ($StageDir -and (Test-Path $StageDir)) {
+        try {
+            Remove-Item -Path $StageDir -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to remove staging directory $StageDir: $($_.Exception.Message)"
+        }
+    }
+
     if ($TmpDir -and (Test-Path $TmpDir)) {
         try {
             Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction Stop
