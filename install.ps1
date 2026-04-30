@@ -170,7 +170,7 @@ try {
     try {
         Move-Item -Path $StageDir -Destination $Prefix
     } catch {
-        if (Test-Path $BackupDir -and (-not (Test-Path $Prefix))) {
+        if ((Test-Path $BackupDir) -and (-not (Test-Path $Prefix))) {
             Move-Item -Path $BackupDir -Destination $Prefix
         }
         throw
