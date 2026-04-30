@@ -234,7 +234,7 @@ finally {
         try {
             Remove-Item -Path $BackupDir -Recurse -Force -ErrorAction Stop
         } catch {
-            Write-Warning "Failed to remove previous-installation backup $BackupDir: $($_.Exception.Message)"
+            Write-Warning "Failed to remove previous-installation backup ${BackupDir}: $($_.Exception.Message)"
         }
     }
 
@@ -242,7 +242,7 @@ finally {
         try {
             Remove-Item -Path $StageDir -Recurse -Force -ErrorAction Stop
         } catch {
-            Write-Warning "Failed to remove staging directory $StageDir: $($_.Exception.Message)"
+            Write-Warning "Failed to remove staging directory ${StageDir}: $($_.Exception.Message)"
         }
     }
 
@@ -250,7 +250,7 @@ finally {
         try {
             Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction Stop
         } catch {
-            Write-Warning "Failed to remove temporary directory $TmpDir: $($_.Exception.Message)"
+            Write-Warning "Failed to remove temporary directory ${TmpDir}: $($_.Exception.Message)"
         }
     }
 }
