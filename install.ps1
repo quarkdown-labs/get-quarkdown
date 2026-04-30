@@ -150,7 +150,7 @@ try {
         New-Item -ItemType Directory -Force -Path $PuppeteerCacheDir | Out-Null
         $env:PUPPETEER_CACHE_DIR = $PuppeteerCacheDir
         npm init -y --prefix "$TmpDir\quarkdown\lib" | Out-Null
-        npm install puppeteer --prefix "$TmpDir\quarkdown\lib" | Out-Null
+        npm install puppeteer --prefix "$TmpDir\quarkdown\lib" --no-audit --no-fund --loglevel=error | Out-Null
         $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
     }
 
