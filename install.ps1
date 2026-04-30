@@ -145,6 +145,19 @@ set "PUPPETEER_CACHE_DIR=$PuppeteerCacheDir"
 "@
 Set-Content -Path $WrapperPath -Value $WrapperContent
 
+# Git Bash does not resolve .cmd wrappers by name; provide an extensionless shim.
+$BashWrapperPath = "$Prefix\quarkdown"
+$BashWrapperContent = @'
+#!/usr/bin/env sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$SCRIPT_DIR/quarkdown.cmd" "$@"
+'@
+[System.IO.File]::WriteAllText(
+    $BashWrapperPath,
+    $BashWrapperContent.Replace("`r`n", "`n"),
+    [System.Text.UTF8Encoding]::new($false)
+)
+
 # Add to user PATH if not already present
 $UserPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
 if ($UserPath -notlike "*$Prefix*") {
