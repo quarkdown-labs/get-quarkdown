@@ -173,6 +173,7 @@ INSTALL_NONCE="$(date +%s)-$$-$RANDOM"
 STAGE_DIR="$INSTALL_PARENT/.quarkdown-new-$INSTALL_NONCE"
 BACKUP_DIR="$INSTALL_PARENT/.quarkdown-old-$INSTALL_NONCE"
 ROLLBACK_CANDIDATE=false
+NEW_INSTALL_PLACED=false
 
 # Ensure temporary artifacts are cleaned and restore the previous install on failure.
 cleanup_install_artifacts() {
@@ -189,6 +190,8 @@ cleanup_install_artifacts() {
     else
       echo "Warning: failed to restore previous installation from $BACKUP_DIR"
     fi
+  elif [[ $cleanup_exit -ne 0 ]] && [[ "$NEW_INSTALL_PLACED" == "true" ]] && [[ -d "$INSTALL_DIR" ]]; then
+    rm -rf "$INSTALL_DIR" || echo "Warning: failed to remove incomplete installation at $INSTALL_DIR"
   elif [[ $cleanup_exit -eq 0 ]] && [[ -d "$BACKUP_DIR" ]]; then
     rm -rf "$BACKUP_DIR" || echo "Warning: failed to remove previous installation backup $BACKUP_DIR"
   fi
@@ -211,7 +214,7 @@ else
   DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/download/$TAG/quarkdown.zip"
 fi
 
-curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
+curl -fL --show-error "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
 unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 
 QD_NPM_PREFIX="$INSTALL_DIR/lib"
@@ -245,6 +248,7 @@ if [[ -d "$INSTALL_DIR" ]]; then
 fi
 
 mv "$STAGE_DIR" "$INSTALL_DIR"
+NEW_INSTALL_PLACED=true
 
 JAVA_HOME_RESOLVED="$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
 

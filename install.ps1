@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Normalize-PathEntry {
+function Get-PathEntry {
     param([string]$PathEntry)
 
     if ([string]::IsNullOrWhiteSpace($PathEntry)) {
@@ -30,13 +30,13 @@ function Test-PathValueContainsEntry {
         [string]$Entry
     )
 
-    $NormalizedEntry = Normalize-PathEntry -PathEntry $Entry
+    $NormalizedEntry = Get-PathEntry -PathEntry $Entry
     foreach ($PathPart in ($PathValue -split ';')) {
         if ([string]::IsNullOrWhiteSpace($PathPart)) {
             continue
         }
 
-        $NormalizedPart = Normalize-PathEntry -PathEntry $PathPart
+        $NormalizedPart = Get-PathEntry -PathEntry $PathPart
         if ($NormalizedPart.Equals($NormalizedEntry, [System.StringComparison]::OrdinalIgnoreCase)) {
             return $true
         }
@@ -123,6 +123,9 @@ if ([string]::IsNullOrWhiteSpace($InstallParent)) {
 }
 $StageDir = Join-Path $InstallParent (".quarkdown-new-" + [System.Guid]::NewGuid().ToString("N"))
 $BackupDir = Join-Path $InstallParent (".quarkdown-old-" + [System.Guid]::NewGuid().ToString("N"))
+$InstallSucceeded = $false
+$PreviousInstallBackedUp = $false
+$NewInstallPlaced = $false
 
 try {
     New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
@@ -165,20 +168,11 @@ try {
         }
         Write-Host "Staging previous installation from $Prefix..."
         Move-Item -Path $Prefix -Destination $BackupDir
+        $PreviousInstallBackedUp = $true
     }
 
-    try {
-        Move-Item -Path $StageDir -Destination $Prefix
-    } catch {
-        if ((Test-Path $BackupDir) -and (-not (Test-Path $Prefix))) {
-            Move-Item -Path $BackupDir -Destination $Prefix
-        }
-        throw
-    }
-
-    if (Test-Path $BackupDir) {
-        Remove-Item -Path $BackupDir -Recurse -Force
-    }
+    Move-Item -Path $StageDir -Destination $Prefix
+    $NewInstallPlaced = $true
 
     # Resolve JAVA_HOME at install time (works through shims)
     $PrevPref = $ErrorActionPreference
@@ -228,8 +222,31 @@ exec "$SCRIPT_DIR/quarkdown.cmd" "$@"
 
         Write-Host "Added $Prefix to user PATH."
     }
+
+    $InstallSucceeded = $true
 }
 finally {
+    if (-not $InstallSucceeded) {
+        if ($PreviousInstallBackedUp -and (Test-Path $BackupDir)) {
+            try {
+                if (Test-Path $Prefix) {
+                    Remove-Item -Path $Prefix -Recurse -Force -ErrorAction Stop
+                }
+                Move-Item -Path $BackupDir -Destination $Prefix -ErrorAction Stop
+                Write-Warning "Installation failed; restored previous installation at ${Prefix}."
+            } catch {
+                Write-Warning "Installation failed and rollback from ${BackupDir} did not complete: $($_.Exception.Message)"
+            }
+        } elseif ($NewInstallPlaced -and (Test-Path $Prefix)) {
+            try {
+                Remove-Item -Path $Prefix -Recurse -Force -ErrorAction Stop
+                Write-Warning "Installation failed; removed incomplete installation at ${Prefix}."
+            } catch {
+                Write-Warning "Installation failed and cleanup of ${Prefix} did not complete: $($_.Exception.Message)"
+            }
+        }
+    }
+
     if ($BackupDir -and (Test-Path $BackupDir)) {
         try {
             Remove-Item -Path $BackupDir -Recurse -Force -ErrorAction Stop
