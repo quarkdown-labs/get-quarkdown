@@ -9,6 +9,42 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-PathEntry {
+    param([string]$PathEntry)
+
+    if ([string]::IsNullOrWhiteSpace($PathEntry)) {
+        return ""
+    }
+
+    $Trimmed = $PathEntry.Trim()
+    try {
+        return [System.IO.Path]::GetFullPath($Trimmed).TrimEnd('\\')
+    } catch {
+        return $Trimmed.TrimEnd('\\')
+    }
+}
+
+function Test-PathValueContainsEntry {
+    param(
+        [string]$PathValue,
+        [string]$Entry
+    )
+
+    $NormalizedEntry = Get-PathEntry -PathEntry $Entry
+    foreach ($PathPart in ($PathValue -split ';')) {
+        if ([string]::IsNullOrWhiteSpace($PathPart)) {
+            continue
+        }
+
+        $NormalizedPart = Get-PathEntry -PathEntry $PathPart
+        if ($NormalizedPart.Equals($NormalizedEntry, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 # Check Java
 if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
     Write-Host "Java not found."
@@ -81,57 +117,72 @@ Write-Host ""
 
 # Download and extract to a temp directory before touching the existing installation
 $TmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
-New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
-
-if (-not $Tag) {
-    $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
-} else {
-    $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/download/$Tag/quarkdown.zip"
+$InstallParent = Split-Path -Path $Prefix -Parent
+if ([string]::IsNullOrWhiteSpace($InstallParent)) {
+    $InstallParent = "."
 }
+$StageDir = Join-Path $InstallParent (".quarkdown-new-" + [System.Guid]::NewGuid().ToString("N"))
+$BackupDir = Join-Path $InstallParent (".quarkdown-old-" + [System.Guid]::NewGuid().ToString("N"))
+$InstallSucceeded = $false
+$PreviousInstallBackedUp = $false
+$NewInstallPlaced = $false
 
-$ZipPath = "$TmpDir\quarkdown.zip"
-Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath -UseBasicParsing
+try {
+    New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
 
-Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
-
-$QdNpmPrefix = "$Prefix\lib"
-
-# Check if puppeteer path is provided via -PuppeteerPrefix
-if ($PuppeteerPrefix -and (Test-Path "$PuppeteerPrefix\node_modules\puppeteer")) {
-    $QdNpmPrefix = $PuppeteerPrefix
-    $PuppeteerCacheDir = "$env:USERPROFILE\.cache\puppeteer"
-} else {
-    # Install Puppeteer into the staging directory
-    $PuppeteerCacheDir = "$TmpDir\quarkdown\lib\puppeteer_cache"
-    New-Item -ItemType Directory -Force -Path $PuppeteerCacheDir | Out-Null
-    $env:PUPPETEER_CACHE_DIR = $PuppeteerCacheDir
-    npm init -y --prefix "$TmpDir\quarkdown\lib" | Out-Null
-    npm install puppeteer --prefix "$TmpDir\quarkdown\lib" | Out-Null
-    npm install --prefix "$TmpDir\quarkdown\lib\node_modules\puppeteer"
-    $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
-}
-
-# Clean previous installation only after download and Puppeteer install succeed
-if (Test-Path $Prefix) {
-    if (-not (Test-Path "$Prefix\bin\quarkdown.bat")) {
-        Write-Error "$Prefix exists but does not contain a Quarkdown installation. Aborting."
+    if (-not $Tag) {
+        $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
+    } else {
+        $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/download/$Tag/quarkdown.zip"
     }
-    Write-Host "Removing previous installation at $Prefix..."
-    Remove-Item -Path $Prefix -Recurse -Force
-}
 
-New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
-Copy-Item -Path "$TmpDir\quarkdown\*" -Destination $Prefix -Recurse -Force
+    $ZipPath = "$TmpDir\quarkdown.zip"
+    Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath -UseBasicParsing
 
-# Resolve JAVA_HOME at install time (works through shims)
-$PrevPref = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-$JavaHome = (java -XshowSettings:property -version 2>&1 | Select-String 'java\.home\s*=\s*(.+)').Matches.Groups[1].Value.Trim()
-$ErrorActionPreference = $PrevPref
+    Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
 
-# Create wrapper script with baked-in JAVA_HOME and runtime fallback
-$WrapperPath = "$Prefix\quarkdown.cmd"
-$WrapperContent = @"
+    $QdNpmPrefix = "$Prefix\lib"
+
+    # Check if puppeteer path is provided via -PuppeteerPrefix
+    if ($PuppeteerPrefix -and (Test-Path "$PuppeteerPrefix\node_modules\puppeteer")) {
+        $QdNpmPrefix = $PuppeteerPrefix
+        $PuppeteerCacheDir = "$env:USERPROFILE\.cache\puppeteer"
+    } else {
+        # Install Puppeteer into the staging directory
+        $PuppeteerCacheDir = "$TmpDir\quarkdown\lib\puppeteer_cache"
+        New-Item -ItemType Directory -Force -Path $PuppeteerCacheDir | Out-Null
+        $env:PUPPETEER_CACHE_DIR = $PuppeteerCacheDir
+        npm init -y --prefix "$TmpDir\quarkdown\lib" | Out-Null
+        npm install puppeteer --prefix "$TmpDir\quarkdown\lib" --no-audit --no-fund --loglevel=error | Out-Null
+        $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
+    }
+
+    # Stage the extracted payload in the target volume for a fast final move.
+    New-Item -ItemType Directory -Force -Path $InstallParent | Out-Null
+    Move-Item -Path "$TmpDir\quarkdown" -Destination $StageDir
+
+    # Move existing installation out of the way only after download and Puppeteer install succeed.
+    if (Test-Path $Prefix) {
+        if (-not (Test-Path "$Prefix\bin\quarkdown.bat")) {
+            Write-Error "$Prefix exists but does not contain a Quarkdown installation. Aborting."
+        }
+        Write-Host "Staging previous installation from $Prefix..."
+        Move-Item -Path $Prefix -Destination $BackupDir
+        $PreviousInstallBackedUp = $true
+    }
+
+    Move-Item -Path $StageDir -Destination $Prefix
+    $NewInstallPlaced = $true
+
+    # Resolve JAVA_HOME at install time (works through shims)
+    $PrevPref = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $JavaHome = (java -XshowSettings:property -version 2>&1 | Select-String 'java\.home\s*=\s*(.+)').Matches.Groups[1].Value.Trim()
+    $ErrorActionPreference = $PrevPref
+
+    # Create wrapper script with baked-in JAVA_HOME and runtime fallback
+    $WrapperPath = "$Prefix\quarkdown.cmd"
+    $WrapperContent = @"
 @echo off
 set "JAVA_HOME=$JavaHome"
 if exist "%JAVA_HOME%\bin\java.exe" goto :run
@@ -144,17 +195,82 @@ set "QD_NPM_PREFIX=$QdNpmPrefix"
 set "PUPPETEER_CACHE_DIR=$PuppeteerCacheDir"
 "$Prefix\bin\quarkdown.bat" %*
 "@
-Set-Content -Path $WrapperPath -Value $WrapperContent
+    Set-Content -Path $WrapperPath -Value $WrapperContent
 
-# Add to user PATH if not already present
-$UserPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
-if ($UserPath -notlike "*$Prefix*") {
-    [System.Environment]::SetEnvironmentVariable("PATH", "$UserPath;$Prefix", "User")
-    $env:PATH = "$env:PATH;$Prefix"
-    Write-Host "Added $Prefix to user PATH."
+    # Git Bash does not resolve .cmd wrappers by name; provide an extensionless shim.
+    $BashWrapperPath = "$Prefix\quarkdown"
+    $BashWrapperContent = @'
+#!/usr/bin/env sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$SCRIPT_DIR/quarkdown.cmd" "$@"
+'@
+    [System.IO.File]::WriteAllText(
+        $BashWrapperPath,
+        $BashWrapperContent.Replace("`r`n", "`n"),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
+    # Add to user PATH only when the exact installation directory is missing.
+    $UserPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
+    if (-not (Test-PathValueContainsEntry -PathValue $UserPath -Entry $Prefix)) {
+        $NewUserPath = if ([string]::IsNullOrWhiteSpace($UserPath)) { $Prefix } else { "$UserPath;$Prefix" }
+        [System.Environment]::SetEnvironmentVariable("PATH", $NewUserPath, "User")
+
+        if (-not (Test-PathValueContainsEntry -PathValue $env:PATH -Entry $Prefix)) {
+            $env:PATH = if ([string]::IsNullOrWhiteSpace($env:PATH)) { $Prefix } else { "$env:PATH;$Prefix" }
+        }
+
+        Write-Host "Added $Prefix to user PATH."
+    }
+
+    $InstallSucceeded = $true
 }
+finally {
+    if (-not $InstallSucceeded) {
+        if ($PreviousInstallBackedUp -and (Test-Path $BackupDir)) {
+            try {
+                if (Test-Path $Prefix) {
+                    Remove-Item -Path $Prefix -Recurse -Force -ErrorAction Stop
+                }
+                Move-Item -Path $BackupDir -Destination $Prefix -ErrorAction Stop
+                Write-Warning "Installation failed; restored previous installation at ${Prefix}."
+            } catch {
+                Write-Warning "Installation failed and rollback from ${BackupDir} did not complete: $($_.Exception.Message)"
+            }
+        } elseif ($NewInstallPlaced -and (Test-Path $Prefix)) {
+            try {
+                Remove-Item -Path $Prefix -Recurse -Force -ErrorAction Stop
+                Write-Warning "Installation failed; removed incomplete installation at ${Prefix}."
+            } catch {
+                Write-Warning "Installation failed and cleanup of ${Prefix} did not complete: $($_.Exception.Message)"
+            }
+        }
+    }
 
-Remove-Item -Path $TmpDir -Recurse -Force
+    if ($BackupDir -and (Test-Path $BackupDir)) {
+        try {
+            Remove-Item -Path $BackupDir -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to remove previous-installation backup ${BackupDir}: $($_.Exception.Message)"
+        }
+    }
+
+    if ($StageDir -and (Test-Path $StageDir)) {
+        try {
+            Remove-Item -Path $StageDir -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to remove staging directory ${StageDir}: $($_.Exception.Message)"
+        }
+    }
+
+    if ($TmpDir -and (Test-Path $TmpDir)) {
+        try {
+            Remove-Item -Path $TmpDir -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to remove temporary directory ${TmpDir}: $($_.Exception.Message)"
+        }
+    }
+}
 
 Write-Host ""
 Write-Host "Quarkdown is now installed!"

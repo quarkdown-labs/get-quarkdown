@@ -168,6 +168,45 @@ echo ""
 
 # Download and extract to a temp directory before touching the existing installation
 TMP_DIR="$(mktemp -d)"
+INSTALL_PARENT="$(dirname "$INSTALL_DIR")"
+INSTALL_NONCE="$(date +%s)-$$-$RANDOM"
+STAGE_DIR="$INSTALL_PARENT/.quarkdown-new-$INSTALL_NONCE"
+BACKUP_DIR="$INSTALL_PARENT/.quarkdown-old-$INSTALL_NONCE"
+ROLLBACK_CANDIDATE=false
+NEW_INSTALL_PLACED=false
+
+# Ensure temporary artifacts are cleaned and restore the previous install on failure.
+cleanup_install_artifacts() {
+  local cleanup_exit=$?
+  set +e
+
+  if [[ $cleanup_exit -ne 0 ]] && [[ "$ROLLBACK_CANDIDATE" == "true" ]] && [[ -d "$BACKUP_DIR" ]]; then
+    if [[ -d "$INSTALL_DIR" ]]; then
+      rm -rf "$INSTALL_DIR" || echo "Warning: failed to remove incomplete installation at $INSTALL_DIR"
+    fi
+
+    if mv "$BACKUP_DIR" "$INSTALL_DIR"; then
+      echo "Restored previous installation at $INSTALL_DIR after failure."
+    else
+      echo "Warning: failed to restore previous installation from $BACKUP_DIR"
+    fi
+  elif [[ $cleanup_exit -ne 0 ]] && [[ "$NEW_INSTALL_PLACED" == "true" ]] && [[ -d "$INSTALL_DIR" ]]; then
+    rm -rf "$INSTALL_DIR" || echo "Warning: failed to remove incomplete installation at $INSTALL_DIR"
+  elif [[ $cleanup_exit -eq 0 ]] && [[ -d "$BACKUP_DIR" ]]; then
+    rm -rf "$BACKUP_DIR" || echo "Warning: failed to remove previous installation backup $BACKUP_DIR"
+  fi
+
+  if [[ -d "$STAGE_DIR" ]]; then
+    rm -rf "$STAGE_DIR" || echo "Warning: failed to remove staging directory $STAGE_DIR"
+  fi
+
+  if [[ -d "$TMP_DIR" ]]; then
+    rm -rf "$TMP_DIR" || echo "Warning: failed to remove temporary directory $TMP_DIR"
+  fi
+
+  return $cleanup_exit
+}
+trap cleanup_install_artifacts EXIT
 
 if [[ -z "$TAG" ]]; then
   DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
@@ -175,7 +214,7 @@ else
   DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/download/$TAG/quarkdown.zip"
 fi
 
-curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
+curl -fL --show-error "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
 unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
 
 QD_NPM_PREFIX="$INSTALL_DIR/lib"
@@ -189,23 +228,27 @@ else
   export PUPPETEER_CACHE_DIR="$TMP_DIR/quarkdown/lib/puppeteer_cache"
   mkdir -p "$PUPPETEER_CACHE_DIR"
   npm init -y --prefix "$TMP_DIR/quarkdown/lib" > /dev/null
-  npm install puppeteer --prefix "$TMP_DIR/quarkdown/lib" > /dev/null
-  npm install --prefix "$TMP_DIR/quarkdown/lib/node_modules/puppeteer"
+  npm install puppeteer --prefix "$TMP_DIR/quarkdown/lib" --no-audit --no-fund --loglevel=error > /dev/null
   export PUPPETEER_CACHE_DIR="$INSTALL_DIR/lib/puppeteer_cache"
 fi
 
-# Clean previous installation only after download and Puppeteer install succeed
+# Stage the extracted payload in the target volume for a fast final move.
+mkdir -p "$INSTALL_PARENT"
+mv "$TMP_DIR/quarkdown" "$STAGE_DIR"
+
+# Move previous installation out of the way only after download and Puppeteer install succeed.
 if [[ -d "$INSTALL_DIR" ]]; then
   if [[ ! -x "$INSTALL_DIR/bin/quarkdown" ]]; then
     echo "Error: $INSTALL_DIR exists but does not contain a Quarkdown installation. Aborting."
     exit 1
   fi
-  echo "Removing previous installation at $INSTALL_DIR..."
-  rm -rf "$INSTALL_DIR"
+  echo "Staging previous installation from $INSTALL_DIR..."
+  mv "$INSTALL_DIR" "$BACKUP_DIR"
+  ROLLBACK_CANDIDATE=true
 fi
 
-mkdir -p "$INSTALL_DIR"
-cp -r "$TMP_DIR/quarkdown/"* "$INSTALL_DIR"
+mv "$STAGE_DIR" "$INSTALL_DIR"
+NEW_INSTALL_PLACED=true
 
 JAVA_HOME_RESOLVED="$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
 
@@ -223,8 +266,6 @@ exec "$INSTALL_DIR/bin/quarkdown" "\$@"
 EOF
 
 chmod +x "$WRAPPER_PATH"
-
-rm -rf "$TMP_DIR"
 
 echo "Quarkdown is now installed!"
 echo ""
