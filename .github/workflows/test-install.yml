@@ -68,13 +68,13 @@ jobs:
 
       - name: Install (Linux)
         if: runner.os == 'Linux'
-        run: sudo env "PATH=$PATH" bash install.sh
+        run: sudo env "PATH=$PATH" bash install.sh --tag latest
 
       - name: Install (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          .\install.ps1
+          .\install.ps1 -Tag latest
 
           # Refresh PATH from registry so subsequent steps see all installed tools
           $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
@@ -126,13 +126,13 @@ jobs:
 
       - name: Reinstall (Linux)
         if: runner.os == 'Linux'
-        run: sudo env "PATH=$PATH" bash install.sh
+        run: sudo env "PATH=$PATH" bash install.sh --tag latest
 
       - name: Reinstall (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          .\install.ps1
+          .\install.ps1 -Tag latest
 
           $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
           echo "PATH=$RefreshedPath;$env:LOCALAPPDATA\Quarkdown" >> $env:GITHUB_ENV
