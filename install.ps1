@@ -101,13 +101,14 @@ $NewInstallPlaced = $false
 try {
     New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
 
+    $ZipName = "quarkdown-windows-x64.zip"
     if (-not $Tag) {
-        $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
+        $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/latest/download/$ZipName"
     } else {
-        $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/download/$Tag/quarkdown.zip"
+        $DownloadUrl = "https://github.com/iamgio/quarkdown/releases/download/$Tag/$ZipName"
     }
 
-    $ZipPath = "$TmpDir\quarkdown.zip"
+    $ZipPath = "$TmpDir\$ZipName"
     Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath -UseBasicParsing
 
     Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force

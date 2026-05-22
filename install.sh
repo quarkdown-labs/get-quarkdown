@@ -183,14 +183,29 @@ cleanup_install_artifacts() {
 }
 trap cleanup_install_artifacts EXIT
 
+# Detect target platform for the per-platform release zip.
+case "$(uname -s)" in
+  Linux)  OS="linux" ;;
+  Darwin) OS="macos" ;;
+  *)      echo "Error: unsupported operating system: $(uname -s)"; exit 1 ;;
+esac
+
+case "$(uname -m)" in
+  x86_64|amd64)    ARCH="x64" ;;
+  aarch64|arm64)   ARCH="aarch64" ;;
+  *)               echo "Error: unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
+
+ZIP_NAME="quarkdown-$OS-$ARCH.zip"
+
 if [[ -z "$TAG" ]]; then
-  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
+  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/latest/download/$ZIP_NAME"
 else
-  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/download/$TAG/quarkdown.zip"
+  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/download/$TAG/$ZIP_NAME"
 fi
 
-curl -fL --show-error "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
-unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
+curl -fL --show-error "$DOWNLOAD_URL" -o "$TMP_DIR/$ZIP_NAME"
+unzip "$TMP_DIR/$ZIP_NAME" -d "$TMP_DIR" > /dev/null
 
 QD_NPM_PREFIX="$INSTALL_DIR/lib"
 

@@ -80,24 +80,6 @@ jobs:
           $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
           echo "PATH=$RefreshedPath;$env:LOCALAPPDATA\Quarkdown" >> $env:GITHUB_ENV
 
-      - name: Diagnose install layout (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $P = "$env:LOCALAPPDATA\Quarkdown"
-          Write-Host "=== $P ==="
-          Get-ChildItem $P | Select-Object Mode, Length, Name | Format-Table -AutoSize | Out-String | Write-Host
-          Write-Host "=== $P\runtime ==="
-          if (Test-Path "$P\runtime") {
-            Get-ChildItem "$P\runtime" | Select-Object Mode, Length, Name | Format-Table -AutoSize | Out-String | Write-Host
-          } else { Write-Host "MISSING" }
-          Write-Host "=== $P\runtime\bin ==="
-          if (Test-Path "$P\runtime\bin") {
-            Get-ChildItem "$P\runtime\bin" | Select-Object Mode, Length, Name | Format-Table -AutoSize | Out-String | Write-Host
-          } else { Write-Host "MISSING" }
-          Write-Host "=== java.exe test-path ==="
-          Test-Path "$P\runtime\bin\java.exe"
-
       - name: Test (Linux)
         if: runner.os == 'Linux'
         run: |
