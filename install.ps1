@@ -45,35 +45,6 @@ function Test-PathValueContainsEntry {
     return $false
 }
 
-# Check Java
-if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
-    Write-Host "Java not found."
-
-    if (-not $NoPM) {
-        if (Get-Command winget -ErrorAction SilentlyContinue) {
-            Write-Host ""
-            Write-Host "Installing Java using winget..."
-            winget install --id Microsoft.OpenJDK.17 --accept-source-agreements --accept-package-agreements
-        } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-            Write-Host ""
-            Write-Host "Installing Java using choco..."
-            choco install openjdk17 -y
-        } elseif (Get-Command scoop -ErrorAction SilentlyContinue) {
-            Write-Host ""
-            Write-Host "Installing Java using scoop..."
-            scoop bucket add java
-            scoop install openjdk17
-        }
-    }
-
-    # Refresh PATH after install
-    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
-
-    if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
-        Write-Error "Java is still not installed. Please install JDK 17 manually."
-    }
-}
-
 # Check Node.js
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "Node.js not found."
@@ -174,23 +145,11 @@ try {
     Move-Item -Path $StageDir -Destination $Prefix
     $NewInstallPlaced = $true
 
-    # Resolve JAVA_HOME at install time (works through shims)
-    $PrevPref = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    $JavaHome = (java -XshowSettings:property -version 2>&1 | Select-String 'java\.home\s*=\s*(.+)').Matches.Groups[1].Value.Trim()
-    $ErrorActionPreference = $PrevPref
-
-    # Create wrapper script with baked-in JAVA_HOME and runtime fallback
+    # Create wrapper script
     $WrapperPath = "$Prefix\quarkdown.cmd"
     $WrapperContent = @"
 @echo off
-set "JAVA_HOME=$JavaHome"
-if exist "%JAVA_HOME%\bin\java.exe" goto :run
-set "JAVA_HOME="
-for /f "tokens=2 delims==" %%a in ('java -XshowSettings:property -version 2^>^&1 ^| findstr "java.home"') do set "JAVA_HOME=%%a"
-if defined JAVA_HOME set "JAVA_HOME=%JAVA_HOME:~1%"
-:run
-set "PATH=%JAVA_HOME%\bin;$Prefix\bin;%PATH%"
+set "PATH=$Prefix\bin;%PATH%"
 set "QD_NPM_PREFIX=$QdNpmPrefix"
 set "PUPPETEER_CACHE_DIR=$PuppeteerCacheDir"
 "$Prefix\bin\quarkdown.bat" %*

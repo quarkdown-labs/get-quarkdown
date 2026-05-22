@@ -87,31 +87,6 @@ install_with_pm() {
   esac
 }
 
-# Check Java
-if ! command -v java &>/dev/null; then
-  echo "Java not found."
-
-  if $USE_PM; then
-    PM=$(detect_package_manager)
-    if [[ -z "$PM" ]]; then
-      echo "No supported package manager found. Skipping automatic install."
-      USE_PM=false
-    else
-      case "$PM" in
-        apt) install_with_pm "$PM" openjdk-17-jdk ;;
-        dnf|yum|zypper) install_with_pm "$PM" java-17-openjdk ;;
-        pacman) install_with_pm "$PM" jdk17-openjdk ;;
-        brew) install_with_pm "$PM" openjdk@17 ;;
-      esac
-    fi
-  fi
-
-  if ! command -v java &>/dev/null; then
-    echo "Error: Java is still not installed. Please install JDK 17 manually."
-    exit 1
-  fi
-fi
-
 # Check Node.js
 if ! command -v node &>/dev/null; then
   echo "Node.js not found."
@@ -250,15 +225,9 @@ fi
 mv "$STAGE_DIR" "$INSTALL_DIR"
 NEW_INSTALL_PLACED=true
 
-JAVA_HOME_RESOLVED="$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
-
 WRAPPER_PATH="/usr/local/bin/quarkdown"
 cat <<EOF > "$WRAPPER_PATH"
 #!/bin/bash
-export JAVA_HOME="$JAVA_HOME_RESOLVED"
-if [ ! -d "\$JAVA_HOME" ]; then
-  export JAVA_HOME="\$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
-fi
 export PATH="$INSTALL_DIR/bin:\$PATH"
 export QD_NPM_PREFIX="$QD_NPM_PREFIX"
 export PUPPETEER_CACHE_DIR="$PUPPETEER_CACHE_DIR"
