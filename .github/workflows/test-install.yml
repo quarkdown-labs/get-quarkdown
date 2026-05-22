@@ -84,14 +84,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          Write-Host "=== Top-level contents of `$Prefix ==="
-          Get-ChildItem "$env:LOCALAPPDATA\Quarkdown" | Select-Object Mode, Name
-          Write-Host "=== runtime\bin exists? ==="
-          Test-Path "$env:LOCALAPPDATA\Quarkdown\runtime\bin\java.exe"
-          Write-Host "=== First 15 lines of bundled quarkdown.bat ==="
-          Get-Content "$env:LOCALAPPDATA\Quarkdown\bin\quarkdown.bat" -TotalCount 15
-          Write-Host "=== Wrapper quarkdown.cmd ==="
-          Get-Content "$env:LOCALAPPDATA\Quarkdown\quarkdown.cmd"
+          $P = "$env:LOCALAPPDATA\Quarkdown"
+          Write-Host "=== $P ==="
+          Get-ChildItem $P | Select-Object Mode, Length, Name | Format-Table -AutoSize | Out-String | Write-Host
+          Write-Host "=== $P\runtime ==="
+          if (Test-Path "$P\runtime") {
+            Get-ChildItem "$P\runtime" | Select-Object Mode, Length, Name | Format-Table -AutoSize | Out-String | Write-Host
+          } else { Write-Host "MISSING" }
+          Write-Host "=== $P\runtime\bin ==="
+          if (Test-Path "$P\runtime\bin") {
+            Get-ChildItem "$P\runtime\bin" | Select-Object Mode, Length, Name | Format-Table -AutoSize | Out-String | Write-Host
+          } else { Write-Host "MISSING" }
+          Write-Host "=== java.exe test-path ==="
+          Test-Path "$P\runtime\bin\java.exe"
 
       - name: Test (Linux)
         if: runner.os == 'Linux'
