@@ -80,6 +80,19 @@ jobs:
           $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
           echo "PATH=$RefreshedPath;$env:LOCALAPPDATA\Quarkdown" >> $env:GITHUB_ENV
 
+      - name: Diagnose install layout (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Write-Host "=== Top-level contents of `$Prefix ==="
+          Get-ChildItem "$env:LOCALAPPDATA\Quarkdown" | Select-Object Mode, Name
+          Write-Host "=== runtime\bin exists? ==="
+          Test-Path "$env:LOCALAPPDATA\Quarkdown\runtime\bin\java.exe"
+          Write-Host "=== First 15 lines of bundled quarkdown.bat ==="
+          Get-Content "$env:LOCALAPPDATA\Quarkdown\bin\quarkdown.bat" -TotalCount 15
+          Write-Host "=== Wrapper quarkdown.cmd ==="
+          Get-Content "$env:LOCALAPPDATA\Quarkdown\quarkdown.cmd"
+
       - name: Test (Linux)
         if: runner.os == 'Linux'
         run: |
