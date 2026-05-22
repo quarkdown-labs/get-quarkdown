@@ -196,6 +196,12 @@ case "$(uname -m)" in
   *)               echo "Error: unsupported architecture: $(uname -m)"; exit 1 ;;
 esac
 
+# Linux on ARM is not part of the published release set yet.
+if [[ "$OS" == "linux" && "$ARCH" == "aarch64" ]]; then
+  echo "Error: linux-aarch64 is not currently published. Use an x64 host or install Quarkdown manually."
+  exit 1
+fi
+
 ZIP_NAME="quarkdown-$OS-$ARCH.zip"
 
 if [[ -z "$TAG" ]]; then
