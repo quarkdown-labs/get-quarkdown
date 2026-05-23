@@ -246,6 +246,14 @@ fi
 mv "$STAGE_DIR" "$INSTALL_DIR"
 NEW_INSTALL_PLACED=true
 
+# The bundled runtime is built via cross-compiled jlink on Linux, so its Mach-O
+# binaries arrive unsigned. Apple Silicon refuses to execute native code without
+# at least an ad-hoc signature, so re-sign the runtime here.
+if [[ "$OS" == "macos" ]] && command -v codesign &>/dev/null; then
+  codesign --force --deep --sign - "$INSTALL_DIR/runtime" >/dev/null 2>&1 || \
+    echo "Warning: codesign failed; quarkdown may crash on Apple Silicon."
+fi
+
 WRAPPER_PATH="/usr/local/bin/quarkdown"
 cat <<EOF > "$WRAPPER_PATH"
 #!/bin/bash
