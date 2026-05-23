@@ -87,31 +87,6 @@ install_with_pm() {
   esac
 }
 
-# Check Java
-if ! command -v java &>/dev/null; then
-  echo "Java not found."
-
-  if $USE_PM; then
-    PM=$(detect_package_manager)
-    if [[ -z "$PM" ]]; then
-      echo "No supported package manager found. Skipping automatic install."
-      USE_PM=false
-    else
-      case "$PM" in
-        apt) install_with_pm "$PM" openjdk-17-jdk ;;
-        dnf|yum|zypper) install_with_pm "$PM" java-17-openjdk ;;
-        pacman) install_with_pm "$PM" jdk17-openjdk ;;
-        brew) install_with_pm "$PM" openjdk@17 ;;
-      esac
-    fi
-  fi
-
-  if ! command -v java &>/dev/null; then
-    echo "Error: Java is still not installed. Please install JDK 17 manually."
-    exit 1
-  fi
-fi
-
 # Check Node.js
 if ! command -v node &>/dev/null; then
   echo "Node.js not found."
@@ -208,14 +183,35 @@ cleanup_install_artifacts() {
 }
 trap cleanup_install_artifacts EXIT
 
-if [[ -z "$TAG" ]]; then
-  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/latest/download/quarkdown.zip"
-else
-  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/download/$TAG/quarkdown.zip"
+# Detect target platform for the per-platform release zip.
+case "$(uname -s)" in
+  Linux)  OS="linux" ;;
+  Darwin) OS="macos" ;;
+  *)      echo "Error: unsupported operating system: $(uname -s)"; exit 1 ;;
+esac
+
+case "$(uname -m)" in
+  x86_64|amd64)    ARCH="x64" ;;
+  aarch64|arm64)   ARCH="aarch64" ;;
+  *)               echo "Error: unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
+
+# Linux on ARM is not part of the published release set yet.
+if [[ "$OS" == "linux" && "$ARCH" == "aarch64" ]]; then
+  echo "Error: linux-aarch64 is not currently published. Use an x64 host or install Quarkdown manually."
+  exit 1
 fi
 
-curl -fL --show-error "$DOWNLOAD_URL" -o "$TMP_DIR/quarkdown.zip"
-unzip "$TMP_DIR/quarkdown.zip" -d "$TMP_DIR" > /dev/null
+ZIP_NAME="quarkdown-$OS-$ARCH.zip"
+
+if [[ -z "$TAG" ]]; then
+  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/latest/download/$ZIP_NAME"
+else
+  DOWNLOAD_URL="https://github.com/iamgio/quarkdown/releases/download/$TAG/$ZIP_NAME"
+fi
+
+curl -fL --show-error "$DOWNLOAD_URL" -o "$TMP_DIR/$ZIP_NAME"
+unzip "$TMP_DIR/$ZIP_NAME" -d "$TMP_DIR" > /dev/null
 
 QD_NPM_PREFIX="$INSTALL_DIR/lib"
 
@@ -250,15 +246,9 @@ fi
 mv "$STAGE_DIR" "$INSTALL_DIR"
 NEW_INSTALL_PLACED=true
 
-JAVA_HOME_RESOLVED="$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
-
 WRAPPER_PATH="/usr/local/bin/quarkdown"
 cat <<EOF > "$WRAPPER_PATH"
 #!/bin/bash
-export JAVA_HOME="$JAVA_HOME_RESOLVED"
-if [ ! -d "\$JAVA_HOME" ]; then
-  export JAVA_HOME="\$(java -XshowSettings:property -version 2>&1 | grep 'java.home' | sed 's/.*= //')"
-fi
 export PATH="$INSTALL_DIR/bin:\$PATH"
 export QD_NPM_PREFIX="$QD_NPM_PREFIX"
 export PUPPETEER_CACHE_DIR="$PUPPETEER_CACHE_DIR"
