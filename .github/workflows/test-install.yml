@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.os }}
 
@@ -37,6 +37,28 @@ jobs:
           # Remove toolcache path fragments from PATH
           NEW_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/opt/hostedtoolcache' | tr '\n' ':' | sed 's/:$//')
           echo "PATH=$NEW_PATH" >> $GITHUB_ENV
+
+      - name: Remove pre-installed Node and Java (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          for cmd in node java; do
+            BIN=$(command -v "$cmd" || true)
+            if [ -n "$BIN" ]; then
+              echo "Removing $cmd at $BIN"
+              sudo rm -f "$BIN" || true
+            fi
+          done
+
+          # /usr/bin/java is a system stub that dispatches through /usr/libexec/java_home
+          # to whatever JDK is installed under /Library/Java/JavaVirtualMachines.
+          # Wipe that directory so the stub has nothing to dispatch to.
+          if [ -d /Library/Java/JavaVirtualMachines ]; then
+            sudo rm -rf /Library/Java/JavaVirtualMachines/* || true
+          fi
+
+          NEW_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v 'hostedtoolcache' | tr '\n' ':' | sed 's/:$//')
+          echo "PATH=$NEW_PATH" >> $GITHUB_ENV
+          echo "JAVA_HOME=" >> $GITHUB_ENV
 
       - name: Remove pre-installed Node and Java (Windows)
         if: runner.os == 'Windows'
@@ -63,11 +85,17 @@ jobs:
         shell: bash
         run: |
           if which node; then echo "ERROR: Node is still present"; exit 1; fi
-          if which java; then echo "ERROR: Java is still present"; exit 1; fi
+          # macOS keeps /usr/bin/java as a system stub even with no JDK installed;
+          # probe `java -version` instead of `which java` so the stub doesn't trip us.
+          if java -version >/dev/null 2>&1; then
+            echo "ERROR: a working Java runtime is still accessible:"
+            java -version || true
+            exit 1
+          fi
           echo "OK: Node and Java are not present"
 
-      - name: Install (Linux)
-        if: runner.os == 'Linux'
+      - name: Install (Linux/macOS)
+        if: runner.os != 'Windows'
         run: sudo env "PATH=$PATH" bash install.sh --tag latest
 
       - name: Install (Windows)
@@ -80,8 +108,8 @@ jobs:
           $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
           echo "PATH=$RefreshedPath;$env:LOCALAPPDATA\Quarkdown" >> $env:GITHUB_ENV
 
-      - name: Test (Linux)
-        if: runner.os == 'Linux'
+      - name: Test (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           echo ".docname {test}" > main.qd
 
@@ -103,8 +131,8 @@ jobs:
           quarkdown c main.qd -o ./output --pdf
           if (-Not (Test-Path "./output/test.pdf")) { Write-Error "Output PDF not found" }
 
-      - name: Corrupt installation for reinstall test (Linux)
-        if: runner.os == 'Linux'
+      - name: Corrupt installation for reinstall test (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           # Rename all files in lib to simulate stale state
           sudo find /opt/quarkdown/lib -type f -exec sh -c 'mv "$1" "$1.old"' _ {} \;
@@ -124,8 +152,8 @@ jobs:
           if ($LASTEXITCODE -eq 0) { Write-Error "quarkdown should have failed after corruption" }
           $global:LASTEXITCODE = 0
 
-      - name: Reinstall (Linux)
-        if: runner.os == 'Linux'
+      - name: Reinstall (Linux/macOS)
+        if: runner.os != 'Windows'
         run: sudo env "PATH=$PATH" bash install.sh --tag latest
 
       - name: Reinstall (Windows)
@@ -137,8 +165,8 @@ jobs:
           $RefreshedPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
           echo "PATH=$RefreshedPath;$env:LOCALAPPDATA\Quarkdown" >> $env:GITHUB_ENV
 
-      - name: Test reinstall is clean (Linux)
-        if: runner.os == 'Linux'
+      - name: Test reinstall is clean (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           # Verify no .old files remain from the corrupted installation
           test -z "$(find /opt/quarkdown/lib -name '*.old' 2>/dev/null)"

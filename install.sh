@@ -78,7 +78,16 @@ install_with_pm() {
       sudo zypper install -y "$package"
       ;;
     brew)
-      brew install "$package"
+      # Homebrew refuses to run as root. When invoked via sudo, drop privileges back to the original user.
+      if [[ "$EUID" -eq 0 ]]; then
+        if [[ -z "$SUDO_USER" || "$SUDO_USER" == "root" ]]; then
+          echo "Error: brew cannot run as root and no non-root SUDO_USER is set."
+          exit 1
+        fi
+        sudo -u "$SUDO_USER" -H brew install "$package"
+      else
+        brew install "$package"
+      fi
       ;;
     *)
       echo "Unsupported package manager: $pm"
