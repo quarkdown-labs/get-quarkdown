@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: '0 0 * * 1'
 
+# The workflow runs code controlled by pull requests: no write access is needed.
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
