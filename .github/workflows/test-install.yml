@@ -17,7 +17,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      # No credentials are persisted: the workflow only reads public release assets,
+      # and installer code from PRs must not see tokens.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Remove pre-installed Node and Java (Linux)
         if: runner.os == 'Linux'
