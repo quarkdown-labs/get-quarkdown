@@ -2,8 +2,6 @@
 
 param(
     [string]$Prefix = "$env:LOCALAPPDATA\Quarkdown",
-    [switch]$NoPM,
-    [string]$PuppeteerPrefix = "",
     [string]$Tag = ""
 )
 
@@ -45,44 +43,6 @@ function Test-PathValueContainsEntry {
     return $false
 }
 
-# Check Node.js
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Write-Host "Node.js not found."
-
-    if (-not $NoPM) {
-        if (Get-Command winget -ErrorAction SilentlyContinue) {
-            Write-Host ""
-            Write-Host "Installing Node.js using winget..."
-            winget install --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
-        } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-            Write-Host ""
-            Write-Host "Installing Node.js using choco..."
-            choco install nodejs-lts -y
-        } elseif (Get-Command scoop -ErrorAction SilentlyContinue) {
-            Write-Host ""
-            Write-Host "Installing Node.js using scoop..."
-            scoop install nodejs-lts
-        }
-    }
-
-    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
-
-    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-        Write-Error "Node.js is still not installed. Please install Node.js manually."
-    }
-}
-
-# Check npm
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-    Write-Host "npm not found."
-
-    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
-
-    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-        Write-Error "npm is still not installed. Please install npm manually."
-    }
-}
-
 Write-Host "Installing Quarkdown to $Prefix..."
 Write-Host ""
 
@@ -113,27 +73,22 @@ try {
 
     Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
 
-    $QdNpmPrefix = "$Prefix\lib"
-
-    # Check if puppeteer path is provided via -PuppeteerPrefix
-    if ($PuppeteerPrefix -and (Test-Path "$PuppeteerPrefix\node_modules\puppeteer")) {
-        $QdNpmPrefix = $PuppeteerPrefix
-        $PuppeteerCacheDir = "$env:USERPROFILE\.cache\puppeteer"
+    # Install chrome-headless-shell, required for PDF export, into the staging directory
+    # via the browser installer script shipped with the distribution.
+    $ChromeInstallScript = "$TmpDir\quarkdown\scripts\install-chrome.ps1"
+    if (Test-Path $ChromeInstallScript) {
+        & $ChromeInstallScript -TargetDir "$TmpDir\quarkdown\lib" | Out-Null
+        $ChromePath = "$Prefix\lib\chrome-headless-shell-win64\chrome-headless-shell.exe"
     } else {
-        # Install Puppeteer into the staging directory
-        $PuppeteerCacheDir = "$TmpDir\quarkdown\lib\puppeteer_cache"
-        New-Item -ItemType Directory -Force -Path $PuppeteerCacheDir | Out-Null
-        $env:PUPPETEER_CACHE_DIR = $PuppeteerCacheDir
-        npm init -y --prefix "$TmpDir\quarkdown\lib" | Out-Null
-        npm install puppeteer --prefix "$TmpDir\quarkdown\lib" --no-audit --no-fund --loglevel=error | Out-Null
-        $PuppeteerCacheDir = "$Prefix\lib\puppeteer_cache"
+        Write-Host "Warning: this Quarkdown release does not ship a browser installer. PDF export may require a manual browser setup."
+        $ChromePath = ""
     }
 
     # Stage the extracted payload in the target volume for a fast final move.
     New-Item -ItemType Directory -Force -Path $InstallParent | Out-Null
     Move-Item -Path "$TmpDir\quarkdown" -Destination $StageDir
 
-    # Move existing installation out of the way only after download and Puppeteer install succeed.
+    # Move existing installation out of the way only after the downloads succeed.
     if (Test-Path $Prefix) {
         if (-not (Test-Path "$Prefix\bin\quarkdown.bat")) {
             Write-Error "$Prefix exists but does not contain a Quarkdown installation. Aborting."
@@ -147,12 +102,12 @@ try {
     $NewInstallPlaced = $true
 
     # Create wrapper script
+    $ChromeSetLine = if ($ChromePath) { "set `"QD_CHROME_PATH=$ChromePath`"" } else { "" }
     $WrapperPath = "$Prefix\quarkdown.cmd"
     $WrapperContent = @"
 @echo off
 set "PATH=$Prefix\bin;%PATH%"
-set "QD_NPM_PREFIX=$QdNpmPrefix"
-set "PUPPETEER_CACHE_DIR=$PuppeteerCacheDir"
+$ChromeSetLine
 "$Prefix\bin\quarkdown.bat" %*
 "@
     Set-Content -Path $WrapperPath -Value $WrapperContent
