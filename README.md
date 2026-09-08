@@ -3,9 +3,10 @@
 Scripts to install [Quarkdown](https://github.com/iamgio/quarkdown)
 with automatic dependency management.
 
-## Linux / macOS
+Along with Quarkdown itself, the scripts install [`chrome-headless-shell`](https://googlechromelabs.github.io/chrome-for-testing/),
+a lightweight headless browser required for PDF export, at the version pinned by the Quarkdown release.
 
-Supported package managers: apt, dnf, yum, pacman, zypper, brew.
+## Linux / macOS
 
 To run with the default options:
 
@@ -19,11 +20,9 @@ To add options, append `-s -- <options>`:
 curl ... | sudo env "PATH=$PATH" bash -s -- --tag v1.12.0
 ```
 
-> Make sure you run with sudo privileges, as the script may need to install system packages and create files in system directories.
+> Make sure you run with sudo privileges, as the script needs to create files in system directories.
 
 ## Windows
-
-Supported package managers: winget, choco, scoop.
 
 To run with the default options:
 
@@ -53,19 +52,3 @@ Install a specific version of Quarkdown instead of the latest stable release.
 
 - `vX.Y.Z` for specific versions (e.g., `v1.0.0`).
 - `latest` for the latest **devbuild** release from the latest commit (possibly unstable).
-
-### `--no-pm` / `-NoPM`
-
-Prevent the script from installing dependencies using an available package manager.
-
-Use this if you want to manually install dependencies or already have them installed.
-
-### `--puppeteer-prefix <path>` / `-PuppeteerPrefix <path>`
-
-Use an existing Puppeteer installation instead of installing a new one.
-
-
-The path should point to the directory containing `node_modules/puppeteer`,
-such as `/usr/lib`.
-
-If this option is not provided, Puppeteer will be installed locally to the Quarkdown installation directory.
